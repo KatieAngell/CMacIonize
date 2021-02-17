@@ -424,6 +424,42 @@ make_hydro_tasks(ThreadSafeVector< Task > &tasks, const uint_fast32_t igrid,
     task.set_subgrid(igrid);
     this_grid.set_hydro_task(17, next_task);
   }
+	//internal self gravity
+	{
+		const size_t next_task = tasks.get_free_element();
+		Task &task = tasks[next_task];
+		task.set_type(TASKTYPE_INNER_GRAVITY);
+		task.set_dependency(this_grid.get_dependency());
+		task.set_subgrid(igrid);
+		this_grid.set_hydro_task(18, next_task);
+	}
+    //external self gravity
+    {
+        int count = 0;
+		size_t next_task;
+
+		for (auto subgridit = grid_creator.begin();
+               subgridit != grid_creator.all_end(); ++subgridit) {
+			//Exclude self interaction and double counting
+            if (subgridit.get_index() >= igrid) {
+               this_grid.set_hydro_task(19 + subgridit.get_index(), NO_TASK);
+				continue;
+            }
+			next_task = tasks.get_free_element();
+            cmac_assert(next_task < 500000);
+            Task &task = tasks[next_task];
+            task.set_type(TASKTYPE_OUTER_GRAVITY);
+            task.set_dependency(this_grid.get_dependency());
+            task.set_extra_dependency((*subgridit).get_dependency());
+            task.set_subgrid(igrid);
+            task.set_buffer(subgridit.get_index());
+            this_grid.set_hydro_task(19 + subgridit.get_index(), next_task);
+            count++;
+		}
+        cmac_assert(count > 0||igrid==0);
+	}
+
+
 }
 
 /**
@@ -525,6 +561,19 @@ set_dependencies(const uint_fast32_t igrid,
   // the conserved variable update unlocks the primitive variable update
   const size_t ipu = this_grid.get_hydro_task(17);
   tasks[icu].add_child(ipu);
+  
+  //PREDICT_PRIMITIVES runs after the gravity calculations
+  const size_t igrav = this_grid.get_hydro_task(18);
+  cmac_assert(igrav < tasks.size());
+  tasks[igrav].add_child(ipp);
+  for (int i = 0; i < int(igrid); i++) {
+    const size_t xgrav = this_grid.get_hydro_task(19+i);
+    cmac_assert(xgrav < tasks.size());
+    tasks[xgrav].add_child(ipp);
+  }
+  
+  
+
 }
 
 /**
@@ -692,6 +741,12 @@ execute_task(const size_t itask,
     break;
   case TASKTYPE_UPDATE_PRIMITIVES:
     subgrid.update_primitive_variables(hydro);
+    break;
+  case TASKTYPE_INNER_GRAVITY:
+    subgrid.inner_gravity();
+    break;
+  case TASKTYPE_OUTER_GRAVITY:
+    subgrid.outer_gravity(*(grid_creator.get_subgrid(task.get_buffer())), false);
     break;
   default:
     cmac_error("Unknown hydro task: %" PRIiFAST32, task.get_type());
@@ -2060,13 +2115,13 @@ int TaskBasedRadiationHydrodynamicsSimulation::do_simulation(
       }
       time_logger.end("turbulence");
     }
-
+	
     // reset the hydro tasks and add them to the queue
     AtomicValue< uint_fast32_t > number_of_tasks;
     for (auto cellit = grid_creator->begin();
          cellit != grid_creator->original_end(); ++cellit) {
       reset_hydro_tasks(*tasks, *cellit);
-      for (int_fast8_t i = 0; i < 18; ++i) {
+      for (int i = 0; i < 19 + int(cellit.get_index()); ++i) {
         const size_t itask = (*cellit).get_hydro_task(i);
         if (itask != NO_TASK &&
             (*tasks)[itask].get_number_of_unfinished_parents() == 0) {

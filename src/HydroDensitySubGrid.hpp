@@ -36,6 +36,7 @@
  */
 class HydroDensitySubGrid : public DensitySubGrid {
 private:
+
   /*! @brief Volume of a single cell (in m^3). */
   double _cell_volume;
 
@@ -52,7 +53,13 @@ private:
   double *_primitive_variable_limiters;
 
   /*! @brief Indices of the hydro tasks associated with this subgrid. */
-  size_t _hydro_tasks[18];
+  size_t _hydro_tasks[532];
+
+  /*! @brief Total mass of subgrid in kg. */
+  double _total_mass;
+
+  /*! @brief Centre of mass of subgrid */
+  CoordinateVector<> _centre_of_mass;
 
 public:
   /**
@@ -831,6 +838,25 @@ public:
     }
   }
 
+  void update_centre_of_mass() {
+    double mass = 0;
+    CoordinateVector<> unnormalisedCoM(0);
+    // std::cout << "Number of cells[0] = " << _number_of_cells[0] << std::endl;
+    for (int_fast32_t ix = 0; ix < _number_of_cells[0]; ++ix) {
+      for (int_fast32_t iy = 0; iy < _number_of_cells[1]; ++iy) {
+        for (int_fast32_t iz = 0; iz < _number_of_cells[2]; ++iz) {
+          const int_fast32_t indexi =
+              ix * _number_of_cells[3] + iy * _number_of_cells[2] + iz;
+          double cellMass = _hydro_variables[indexi].get_conserved_mass();
+          mass += cellMass;
+          unnormalisedCoM += cellMass * get_cell_midpoint(indexi);
+        }
+      }
+    }
+    _total_mass = mass;
+    _centre_of_mass = unnormalisedCoM / mass;
+  }
+
   /**
    * @brief Set the hydro task with the given index.
    *
@@ -1048,6 +1074,114 @@ public:
                                          TRAVELDIRECTION_INSIDE, three_index),
                          *this);
   }
+  //Calculates self gravity of all cells in the subgrid due to each other.
+  inline void inner_gravity() {
+    // Interate over all pairs of cells, so 6 loops total
+    for (int_fast32_t ix = 0; ix < _number_of_cells[0]; ++ix) {
+      for (int_fast32_t iy = 0; iy < _number_of_cells[1]; ++iy) {
+        for (int_fast32_t iz = 0; iz < _number_of_cells[2]; ++iz) {
+          const int_fast32_t indexi =
+              ix * _number_of_cells[3] + iy * _number_of_cells[2] + iz;
+          for (int_fast32_t jx = 0; jx < _number_of_cells[0]; ++jx) {
+            for (int_fast32_t jy = 0; jy < _number_of_cells[1]; ++jy) {
+              for (int_fast32_t jz = 0; jz < _number_of_cells[2]; ++jz) {
+                const int_fast32_t indexj =
+                    jx * _number_of_cells[3] + jy * _number_of_cells[2] + jz;
+                if (indexj >= indexi) {
+                  break;
+                }
+                CoordinateVector<> r =
+                    get_cell_midpoint(indexi) - get_cell_midpoint(indexj);
+                double distance = r.norm();
+
+                _hydro_variables[indexi].set_gravitational_acceleration(
+                    _hydro_variables[indexi].get_gravitational_acceleration() -
+					PhysicalConstants::get_physical_constant(PHYSICALCONSTANT_NEWTON_CONSTANT)* _hydro_variables[indexj].get_conserved_mass()* (r / pow(distance, 3)));
+
+                _hydro_variables[indexj].set_gravitational_acceleration(
+                    _hydro_variables[indexj].get_gravitational_acceleration() +
+					PhysicalConstants::get_physical_constant(PHYSICALCONSTANT_NEWTON_CONSTANT)* _hydro_variables[indexi].get_conserved_mass() * (r/ pow(distance,3)));
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Calculates gravity interaction between every cell in this subgrid and
+  // every cell in other subgrid
+  inline void outer_gravity(HydroDensitySubGrid &other, int treeCode) {
+
+    double separation =
+        (get_cell_midpoint(0) - other.get_cell_midpoint(0)).norm();
+    // double width = (get_cell_midpoint(_number_of_cells[0]) -
+    // get_cell_midpoint(0)).norm(); std::cout << separation << std::endl;
+    // Other subgrid far enough away to average its graviational effect
+    if (treeCode && separation > treeCode) {
+      // std::cout << "Entering CoM loop" << std::endl;
+
+      CoordinateVector<> otherCoM = other._centre_of_mass;
+      for (int_fast32_t ix = 0; ix < _number_of_cells[0]; ++ix) {
+        for (int_fast32_t iy = 0; iy < _number_of_cells[1]; ++iy) {
+          for (int_fast32_t iz = 0; iz < _number_of_cells[2]; ++iz) {
+            const int_fast32_t indexi =
+                ix * _number_of_cells[3] + iy * _number_of_cells[2] + iz;
+
+            CoordinateVector<> r = get_cell_midpoint(indexi) - otherCoM;
+			double distance = r.norm();
+
+            _hydro_variables[indexi].set_gravitational_acceleration(
+                _hydro_variables[indexi].get_gravitational_acceleration() -
+                other._total_mass / pow(distance,3) * PhysicalConstants::get_physical_constant(PHYSICALCONSTANT_NEWTON_CONSTANT) *r);
+
+            r = other.get_cell_midpoint(indexi) - _centre_of_mass;
+            distance = r.norm();
+            other._hydro_variables[indexi].set_gravitational_acceleration(
+                other._hydro_variables[indexi].get_gravitational_acceleration() -
+                _total_mass / pow(distance, 3) *
+				PhysicalConstants::get_physical_constant(PHYSICALCONSTANT_NEWTON_CONSTANT) * r);
+          }
+        }
+      }
+    } else {
+      // Interate over all pairs of cells, so 6 loops total
+      for (int_fast32_t ix = 0; ix < _number_of_cells[0]; ++ix) {
+        for (int_fast32_t iy = 0; iy < _number_of_cells[1]; ++iy) {
+          for (int_fast32_t iz = 0; iz < _number_of_cells[2]; ++iz) {
+            for (int_fast32_t jx = 0; jx < _number_of_cells[0]; ++jx) {
+              for (int_fast32_t jy = 0; jy < _number_of_cells[1]; ++jy) {
+                for (int_fast32_t jz = 0; jz < _number_of_cells[2]; ++jz) {
+                  const int_fast32_t indexi =
+                      ix * _number_of_cells[3] + iy * _number_of_cells[2] + iz;
+                  const int_fast32_t indexj =
+                      jx * _number_of_cells[3] + jy * _number_of_cells[2] + jz;
+
+                  CoordinateVector<> r = get_cell_midpoint(indexi) -
+                                         other.get_cell_midpoint(indexj);
+                  double distance = r.norm();
+
+                  _hydro_variables[indexi].set_gravitational_acceleration(
+                      _hydro_variables[indexi]
+                          .get_gravitational_acceleration() -
+                      other._hydro_variables[indexj].get_conserved_mass() /
+                          pow(distance, 3) * PhysicalConstants::get_physical_constant(PHYSICALCONSTANT_NEWTON_CONSTANT) *
+                          r);
+
+                  other._hydro_variables[indexj].set_gravitational_acceleration(
+                      other._hydro_variables[indexj]
+                          .get_gravitational_acceleration() +
+                      _hydro_variables[indexi].get_conserved_mass() /
+                          pow(distance, 3) * PhysicalConstants::get_physical_constant(PHYSICALCONSTANT_NEWTON_CONSTANT) *
+                          r);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 
   /**
    * @brief Dump the subgrid to the given restart file.
@@ -1055,7 +1189,6 @@ public:
    * @param restart_writer RestartWriter to write to.
    */
   virtual void write_restart_file(RestartWriter &restart_writer) const {
-
     DensitySubGrid::write_restart_file(restart_writer);
 
     restart_writer.write(_cell_volume);

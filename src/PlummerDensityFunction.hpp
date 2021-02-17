@@ -23,18 +23,19 @@
  *
  * @author Bert Vandenbroucke (bv7@st-andrews.ac.uk)
  */
-#ifndef HOMOGENEOUSDENSITYFUNCTION_HPP
-#define HOMOGENEOUSDENSITYFUNCTION_HPP
+#ifndef PLUMMERDENSITYFUNCTION_HPP
+#define PLUMMERDENSITYFUNCTION_HPP
 
 #include "DensityFunction.hpp"
 #include "Log.hpp"
 #include "ParameterFile.hpp"
-
+#include "PhysicalConstants.hpp"
+#include "cmath"
 /**
  * @brief DensityFunction that returns a constant value for all coordinates,
  * corresponding to a homogeneous density field.
  */
-class HomogeneousDensityFunction : public DensityFunction {
+class PlummerDensityFunction : public DensityFunction {
 private:
   /*! @brief Single density value for the entire box (in m^-3). */
   const double _density;
@@ -55,7 +56,7 @@ public:
    * entire box.
    * @param log Log to write logging information to.
    */
-  HomogeneousDensityFunction(double density = 1., double temperature = 8000.,
+  PlummerDensityFunction(double density = 1., double temperature = 8000.,
                              double neutral_fraction_H = 1.e-6,
                              Log *log = nullptr)
       : _density(density), _temperature(temperature),
@@ -80,8 +81,8 @@ public:
    * @param params ParameterFile to read from.
    * @param log Log to write logging information to.
    */
-  HomogeneousDensityFunction(ParameterFile &params, Log *log = nullptr)
-      : HomogeneousDensityFunction(
+  PlummerDensityFunction(ParameterFile &params, Log *log = nullptr)
+      : PlummerDensityFunction(
             params.get_physical_value< QUANTITY_NUMBER_DENSITY >(
                 "DensityFunction:density", "100. cm^-3"),
             params.get_physical_value< QUANTITY_TEMPERATURE >(
@@ -98,12 +99,21 @@ public:
    */
   virtual DensityValues operator()(const Cell &cell) {
     DensityValues values;
-    values.set_number_density(_density);
-    values.set_temperature(_temperature);
-    values.set_ionic_fraction(ION_H_n, _neutral_fraction_H);
-#ifdef HAS_HELIUM
-    values.set_ionic_fraction(ION_He_n, 1.e-6);
-#endif
+
+	double a = 1e13;
+    double M = 2e30;
+
+    auto midpoint = cell.get_cell_midpoint();
+    auto radius = midpoint.norm();
+    if (radius == 0) {
+      // Take density 10% of cell width from r=0
+      radius = pow(cell.get_volume(), 1.0 / 3) / 10;
+    }
+    auto plummer =        
+        3*M/(4*M_PI*pow(a,3)) * pow(1 + pow(radius/a, 2), -2.5)/PhysicalConstants::get_physical_constant(PHYSICALCONSTANT_PROTON_MASS);
+    // auto hernquist = 8.0 / radius * pow(1 + radius, -3)*cell.get_volume();
+    values.set_number_density(plummer);
+    values.set_temperature(8000);
     return values;
   }
 };

@@ -76,7 +76,11 @@ enum TaskType {
   /*! @brief Flush the continuous source photon buffers at the end of the photon
    *  packet creation phase of the iteration. */
   TASKTYPE_FLUSH_CONTINUOUS_PHOTON_BUFFERS,
-  /*! @brief Task type counter. */
+  /*! @brief Calculate self gravity from own subgrid. */
+  TASKTYPE_INNER_GRAVITY,
+  /*! @brief Calculate self gravity from other subgrid. */
+  TASKTYPE_OUTER_GRAVITY,
+ /*! @brief Task type counter. */
   TASKTYPE_NUMBER
 };
 

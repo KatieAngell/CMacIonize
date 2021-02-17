@@ -275,6 +275,7 @@ public:
   inline void set_gravitational_acceleration(
       const CoordinateVector<> gravitational_acceleration) {
     _gravitational_acceleration = gravitational_acceleration;
+    //cmac_assert(_gravitational_acceleration.norm() != 0);
   }
 
   /**
