@@ -46,6 +46,7 @@
 #include "SpiralGalaxyDensityFunction.hpp"
 #include "PlummerDensityFunction.hpp"
 #include "PointDensityFunction.hpp"
+#include "HernquistDensityFunction.hpp"
 
 // HDF5 dependent implementations
 #ifdef HAVE_HDF5
@@ -163,6 +164,8 @@ public:
       return new PlummerDensityFunction(params, log);
     } else if (type == "Point"){
       return new PointDensityFunction(params, log);
+	} else if (type == "Hernquist") {
+	  return new HernquistDensityFunction(params, log);
 #ifdef HAVE_HDF5
     } else if (type == "AmunSnapshot") {
       return new AmunSnapshotDensityFunction(params, log);

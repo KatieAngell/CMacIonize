@@ -57,6 +57,9 @@ private:
   double _energy_term;
 
 public:
+
+	int gravityCount = 0;
+
   /**
    * @brief (Empty) constructor.
    */

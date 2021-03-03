@@ -110,8 +110,7 @@ public:
       radius = pow(cell.get_volume(), 1.0 / 3) / 10;
     }
     auto plummer =        
-        3*M/(4*M_PI*pow(a,3)) * pow(1 + pow(radius/a, 2), -2.5)/PhysicalConstants::get_physical_constant(PHYSICALCONSTANT_PROTON_MASS);
-    // auto hernquist = 8.0 / radius * pow(1 + radius, -3)*cell.get_volume();
+        3 * M * pow(1 + pow(radius/a, 2), -2.5)/(PhysicalConstants::get_physical_constant(PHYSICALCONSTANT_PROTON_MASS)* 4 * M_PI * pow(a, 3));
     values.set_number_density(plummer);
     values.set_temperature(8000);
     return values;

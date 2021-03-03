@@ -746,7 +746,7 @@ execute_task(const size_t itask,
     subgrid.inner_gravity();
     break;
   case TASKTYPE_OUTER_GRAVITY:
-    subgrid.outer_gravity(*(grid_creator.get_subgrid(task.get_buffer())), false);
+    subgrid.outer_gravity(*(grid_creator.get_subgrid(task.get_buffer())), true, 1e14);
     break;
   default:
     cmac_error("Unknown hydro task: %" PRIiFAST32, task.get_type());
@@ -1595,6 +1595,11 @@ int TaskBasedRadiationHydrodynamicsSimulation::do_simulation(
                         ".");
     }
 
+	//Update centre of masses each timestep for efficient gravity calculations
+	for (int i = 0; i < int(grid_creator->number_of_original_subgrids()); i++) {
+		(*(*grid_creator).get_subgrid(i)).update_centre_of_mass();
+	}	
+
     // decide whether or not to do the radiation step
     if (do_radiation &&
         (hydro_radtime < 0. ||
@@ -2174,6 +2179,16 @@ int TaskBasedRadiationHydrodynamicsSimulation::do_simulation(
         }
       }
     }
+	//Check correct number of gravity interactions for 16^3 with 2^3 subgrids
+	/*
+	for (int i = 0; i < 512; i++) {
+		for (int j = 0; j < 8; j++) {
+			int count = (*(*grid_creator).get_subgrid(i)).getGravityCount(j);
+			cmac_assert_message(count == 4095, "Gravity count : %i", count);
+		}
+	}*/
+
+
     stop_parallel_timing_block();
 
     // apply the mask (if applicable)

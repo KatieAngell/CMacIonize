@@ -152,6 +152,10 @@ public:
     return timestep;
   }
 
+  int getGravityCount(int index) {
+	  return _hydro_variables[index].gravityCount;
+  }
+
   /**
    * @brief Update the conserved variables for all cells in the grid.
    *
@@ -1097,10 +1101,12 @@ public:
                 _hydro_variables[indexi].set_gravitational_acceleration(
                     _hydro_variables[indexi].get_gravitational_acceleration() -
 					PhysicalConstants::get_physical_constant(PHYSICALCONSTANT_NEWTON_CONSTANT)* _hydro_variables[indexj].get_conserved_mass()* (r / pow(distance, 3)));
+				_hydro_variables[indexi].gravityCount += 1;
 
                 _hydro_variables[indexj].set_gravitational_acceleration(
                     _hydro_variables[indexj].get_gravitational_acceleration() +
 					PhysicalConstants::get_physical_constant(PHYSICALCONSTANT_NEWTON_CONSTANT)* _hydro_variables[indexi].get_conserved_mass() * (r/ pow(distance,3)));
+				_hydro_variables[indexj].gravityCount += 1;
               }
             }
           }
@@ -1111,14 +1117,14 @@ public:
 
   // Calculates gravity interaction between every cell in this subgrid and
   // every cell in other subgrid
-  inline void outer_gravity(HydroDensitySubGrid &other, int treeCode) {
+  inline void outer_gravity(HydroDensitySubGrid &other, bool treeCode, double distance) {
 
     double separation =
         (get_cell_midpoint(0) - other.get_cell_midpoint(0)).norm();
     // double width = (get_cell_midpoint(_number_of_cells[0]) -
     // get_cell_midpoint(0)).norm(); std::cout << separation << std::endl;
     // Other subgrid far enough away to average its graviational effect
-    if (treeCode && separation > treeCode) {
+    if (treeCode && separation > distance) {
       // std::cout << "Entering CoM loop" << std::endl;
 
       CoordinateVector<> otherCoM = other._centre_of_mass;
@@ -1167,6 +1173,7 @@ public:
                       other._hydro_variables[indexj].get_conserved_mass() /
                           pow(distance, 3) * PhysicalConstants::get_physical_constant(PHYSICALCONSTANT_NEWTON_CONSTANT) *
                           r);
+				  _hydro_variables[indexi].gravityCount += 1;
 
                   other._hydro_variables[indexj].set_gravitational_acceleration(
                       other._hydro_variables[indexj]
@@ -1174,6 +1181,7 @@ public:
                       _hydro_variables[indexi].get_conserved_mass() /
                           pow(distance, 3) * PhysicalConstants::get_physical_constant(PHYSICALCONSTANT_NEWTON_CONSTANT) *
                           r);
+				  other._hydro_variables[indexj].gravityCount += 1;
                 }
               }
             }

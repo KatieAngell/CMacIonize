@@ -23,19 +23,19 @@
   *
   * @author Bert Vandenbroucke (bv7@st-andrews.ac.uk)
   */
-#ifndef POINTDENSITYFUNCTION_HPP
-#define POINTDENSITYFUNCTION_HPP
+#ifndef HERNQUISTDENSITYFUNCTION_HPP
+#define HERNQUISTDENSITYFUNCTION_HPP
 
 #include "DensityFunction.hpp"
 #include "Log.hpp"
 #include "ParameterFile.hpp"
 #include "PhysicalConstants.hpp"
-
+#include "cmath"
   /**
    * @brief DensityFunction that returns a constant value for all coordinates,
    * corresponding to a homogeneous density field.
    */
-class PointDensityFunction : public DensityFunction {
+class HernquistDensityFunction : public DensityFunction {
 private:
 	/*! @brief Single density value for the entire box (in m^-3). */
 	const double _density;
@@ -56,8 +56,9 @@ public:
 	 * entire box.
 	 * @param log Log to write logging information to.
 	 */
-	PointDensityFunction(double density = 1., double temperature = 8000.,
-		double neutral_fraction_H = 1.e-6, Log* log = nullptr)
+	HernquistDensityFunction(double density = 1., double temperature = 8000.,
+		double neutral_fraction_H = 1.e-6,
+		Log* log = nullptr)
 		: _density(density), _temperature(temperature),
 		_neutral_fraction_H(neutral_fraction_H) {
 
@@ -80,8 +81,8 @@ public:
 	 * @param params ParameterFile to read from.
 	 * @param log Log to write logging information to.
 	 */
-	PointDensityFunction(ParameterFile& params, Log* log = nullptr)
-		: PointDensityFunction(
+	HernquistDensityFunction(ParameterFile& params, Log* log = nullptr)
+		: HernquistDensityFunction(
 			params.get_physical_value< QUANTITY_NUMBER_DENSITY >(
 				"DensityFunction:density", "100. cm^-3"),
 			params.get_physical_value< QUANTITY_TEMPERATURE >(
@@ -98,17 +99,23 @@ public:
 	 */
 	virtual DensityValues operator()(const Cell& cell) {
 		DensityValues values;
+
+		double a = 1e13;
+		double M = 2e30;
+
 		auto midpoint = cell.get_cell_midpoint();
-		if (midpoint.norm()<2e14) {
-			values.set_number_density(2e30 / (PhysicalConstants::get_physical_constant(PHYSICALCONSTANT_PROTON_MASS)*cell.get_volume()));
-			values.set_temperature(8000);
-		}
-		else {
-			values.set_number_density(1 / (PhysicalConstants::get_physical_constant(PHYSICALCONSTANT_PROTON_MASS)* cell.get_volume()));
-			values.set_temperature(8000);
-		}
+		auto radius = midpoint.norm();
+		/*if (radius == 0) {
+			// Take density 10% of cell width from r=0
+			radius = pow(cell.get_volume(), 1.0 / 3) / 10;
+		}*/
+		auto hernquist =
+			M * a / (2 * M_PI * radius * pow(a + radius, 3)*PhysicalConstants::get_physical_constant(PHYSICALCONSTANT_PROTON_MASS));
+		values.set_number_density(hernquist);
+		values.set_temperature(8000);
 		return values;
 	}
 };
 
-#endif // HOMOGENEOUSDENSITYFUNCTION_HPP#pragma once
+#endif // HOMOGENEOUSDENSITYFUNCTION_HPP
+
