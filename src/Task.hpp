@@ -102,7 +102,7 @@ private:
   int_least8_t _interaction_direction;
 
   /*! @brief Number of unfinished parent tasks. */
-  AtomicValue< uint_least8_t > _number_of_unfinished_parents;
+  AtomicValue< int > _number_of_unfinished_parents;
 
   /*! @brief Number of child tasks. */
   uint_least8_t _number_of_children;
@@ -255,7 +255,7 @@ public:
    * @param number_of_unfinished_parents Number of unfinished parents.
    */
   inline void set_number_of_unfinished_parents(
-      const uint_fast8_t number_of_unfinished_parents) {
+      const int number_of_unfinished_parents) {
     _number_of_unfinished_parents.set(number_of_unfinished_parents);
   }
 
@@ -264,7 +264,12 @@ public:
    *
    * @return Number of unfinished parents left.
    */
-  inline uint_fast8_t decrement_number_of_unfinished_parents() {
+  inline int decrement_number_of_unfinished_parents() {
+	  if (_type == TASKTYPE_GRADIENTSWEEP_INTERNAL) {
+		  cmac_status("%i Decrement from %i", _type, _number_of_unfinished_parents.value());
+	  }
+		
+	  cmac_assert(_number_of_unfinished_parents.value() > 0);
     return _number_of_unfinished_parents.pre_decrement();
   }
 
@@ -273,7 +278,7 @@ public:
    *
    * @return Number of unfinished parents.
    */
-  inline uint_fast8_t get_number_of_unfinished_parents() const {
+  inline int get_number_of_unfinished_parents() const {
     return _number_of_unfinished_parents.value();
   }
 

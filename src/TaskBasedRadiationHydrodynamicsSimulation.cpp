@@ -446,7 +446,6 @@ make_hydro_tasks(ThreadSafeVector< Task > &tasks, const uint_fast32_t igrid,
 				continue;
             }
 			next_task = tasks.get_free_element();
-            cmac_assert(next_task < 500000);
             Task &task = tasks[next_task];
             task.set_type(TASKTYPE_OUTER_GRAVITY);
             task.set_dependency(this_grid.get_dependency());
@@ -456,7 +455,6 @@ make_hydro_tasks(ThreadSafeVector< Task > &tasks, const uint_fast32_t igrid,
             this_grid.set_hydro_task(19 + subgridit.get_index(), next_task);
             count++;
 		}
-        cmac_assert(count > 0||igrid==0);
 	}
 
 
@@ -562,17 +560,19 @@ set_dependencies(const uint_fast32_t igrid,
   const size_t ipu = this_grid.get_hydro_task(17);
   tasks[icu].add_child(ipu);
   
+
   //PREDICT_PRIMITIVES runs after the gravity calculations
   const size_t igrav = this_grid.get_hydro_task(18);
-  cmac_assert(igrav < tasks.size());
   tasks[igrav].add_child(ipp);
-  for (int i = 0; i < int(igrid); i++) {
-    const size_t xgrav = this_grid.get_hydro_task(19+i);
-    cmac_assert(xgrav < tasks.size());
-    tasks[xgrav].add_child(ipp);
-  }
-  
-  
+
+  for (uint_fast32_t i = 0; i < igrid; ++i) {
+	  const size_t xgrav = this_grid.get_hydro_task(19 + i);
+	  tasks[xgrav].add_child(ipp);
+	  //Other subgrid's task 8 also depends on the gravity interaction stored here
+	  tasks[xgrav].add_child(
+		  (*grid_creator.get_subgrid(tasks[xgrav].get_buffer()))
+		  .get_hydro_task(8));
+  }  
 
 }
 
@@ -581,9 +581,10 @@ set_dependencies(const uint_fast32_t igrid,
  *
  * @param tasks Tasks.
  * @param this_grid Subgrid.
+ * @param subgridIndex 
  */
 inline void reset_hydro_tasks(ThreadSafeVector< Task > &tasks,
-                              HydroDensitySubGrid &this_grid) {
+                              HydroDensitySubGrid &this_grid,int subgridIndex) {
 
   // gradient sweeps
   // internal
@@ -604,8 +605,10 @@ inline void reset_hydro_tasks(ThreadSafeVector< Task > &tasks,
 
   // slope limiter
   tasks[this_grid.get_hydro_task(7)].set_number_of_unfinished_parents(7);
+
   // primitive variable prediction
-  tasks[this_grid.get_hydro_task(8)].set_number_of_unfinished_parents(1);
+  //TODO: Set 8^3 to the number of subgrids
+  tasks[this_grid.get_hydro_task(8)].set_number_of_unfinished_parents(1+pow(8,3));
 
   // flux sweeps
   // internal
@@ -643,6 +646,12 @@ inline void reset_hydro_tasks(ThreadSafeVector< Task > &tasks,
   tasks[this_grid.get_hydro_task(16)].set_number_of_unfinished_parents(7);
   // primitive variable update
   tasks[this_grid.get_hydro_task(17)].set_number_of_unfinished_parents(1);
+
+  tasks[this_grid.get_hydro_task(18)].set_number_of_unfinished_parents(0);
+
+  for (int i = 0; i < subgridIndex; i++) {
+	  tasks[this_grid.get_hydro_task(19 + i)].set_number_of_unfinished_parents(0);
+  }
 }
 
 /**
@@ -2125,7 +2134,7 @@ int TaskBasedRadiationHydrodynamicsSimulation::do_simulation(
     AtomicValue< uint_fast32_t > number_of_tasks;
     for (auto cellit = grid_creator->begin();
          cellit != grid_creator->original_end(); ++cellit) {
-      reset_hydro_tasks(*tasks, *cellit);
+      reset_hydro_tasks(*tasks, *cellit, cellit.get_index());
       for (int i = 0; i < 19 + int(cellit.get_index()); ++i) {
         const size_t itask = (*cellit).get_hydro_task(i);
         if (itask != NO_TASK &&
@@ -2187,6 +2196,19 @@ int TaskBasedRadiationHydrodynamicsSimulation::do_simulation(
 			cmac_assert_message(count == 4095, "Gravity count : %i", count);
 		}
 	}*/
+
+	for (auto cellit = grid_creator->begin();
+		cellit != grid_creator->original_end(); ++cellit) {
+		for (int i = 0; i < 19; ++i) {
+			const size_t itask = (*cellit).get_hydro_task(i);
+			if (itask != NO_TASK &&
+				(!(*tasks)[itask].done() ||
+				(*tasks)[itask].get_number_of_unfinished_parents() != 0)) {
+				cmac_error("Wrong task dependencies (%i, %i)!", i,
+					(*tasks)[itask].get_number_of_unfinished_parents());
+			}
+		}
+	}
 
 
     stop_parallel_timing_block();

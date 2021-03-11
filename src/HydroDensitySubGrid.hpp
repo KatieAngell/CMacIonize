@@ -52,8 +52,9 @@ private:
   /*! @brief Gradient limiters for the primitive hydrodynamical variables. */
   double *_primitive_variable_limiters;
 
+  //TODO: Replace 8 with the general number of subgrids in each direction
   /*! @brief Indices of the hydro tasks associated with this subgrid. */
-  size_t _hydro_tasks[532];
+  size_t _hydro_tasks[20+int(pow(8,3))];
 
   /*! @brief Total mass of subgrid in kg. */
   double _total_mass;
