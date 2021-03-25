@@ -439,7 +439,7 @@ make_hydro_tasks(ThreadSafeVector< Task > &tasks, const uint_fast32_t igrid,
 		size_t next_task;
 
 		for (auto subgridit = grid_creator.begin();
-               subgridit != grid_creator.all_end(); ++subgridit) {
+               subgridit != grid_creator.original_end(); ++subgridit) {
 			//Exclude self interaction and double counting
             if (subgridit.get_index() >= igrid) {
                this_grid.set_hydro_task(19 + subgridit.get_index(), NO_TASK);
@@ -1604,7 +1604,7 @@ int TaskBasedRadiationHydrodynamicsSimulation::do_simulation(
                         ".");
     }
 
-	//Update centre of masses each timestep for efficient gravity calculations
+	//Update centre of masses each timestep for gravity calculations
 	for (int i = 0; i < int(grid_creator->number_of_original_subgrids()); i++) {
 		(*(*grid_creator).get_subgrid(i)).update_centre_of_mass();
 	}	

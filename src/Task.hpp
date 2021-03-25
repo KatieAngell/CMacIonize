@@ -265,11 +265,6 @@ public:
    * @return Number of unfinished parents left.
    */
   inline int decrement_number_of_unfinished_parents() {
-	  if (_type == TASKTYPE_GRADIENTSWEEP_INTERNAL) {
-		  cmac_status("%i Decrement from %i", _type, _number_of_unfinished_parents.value());
-	  }
-		
-	  cmac_assert(_number_of_unfinished_parents.value() > 0);
     return _number_of_unfinished_parents.pre_decrement();
   }
 

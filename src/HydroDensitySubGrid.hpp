@@ -1118,14 +1118,14 @@ public:
 
   // Calculates gravity interaction between every cell in this subgrid and
   // every cell in other subgrid
-  inline void outer_gravity(HydroDensitySubGrid &other, bool treeCode, double distance) {
+  inline void outer_gravity(HydroDensitySubGrid &other, bool averaging, double distance) {
 
     double separation =
         (get_cell_midpoint(0) - other.get_cell_midpoint(0)).norm();
     // double width = (get_cell_midpoint(_number_of_cells[0]) -
     // get_cell_midpoint(0)).norm(); std::cout << separation << std::endl;
     // Other subgrid far enough away to average its graviational effect
-    if (treeCode && separation > distance) {
+    if (averaging && separation > distance) {
       // std::cout << "Entering CoM loop" << std::endl;
 
       CoordinateVector<> otherCoM = other._centre_of_mass;
